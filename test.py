@@ -1,6 +1,7 @@
 import recognize
 import subprocess
 import time
+import heapq
 
 
 class Puzzle:
@@ -136,6 +137,122 @@ class Puzzle:
         """将状态转为可哈希的 key（用于去重）"""
         return tuple(tuple(cup) for cup in state)
 
+    def _heuristic(self):
+        """启发函数：未归位的颜色种类数
+
+        一种颜色如果出现在 2+ 个杯子中（或不满杯），就还没有归位。
+        """
+        color_cups = {}
+        for i, cup in enumerate(self.state):
+            seen = set()
+            for c in cup:
+                if c not in seen:
+                    seen.add(c)
+                    color_cups.setdefault(c, set()).add(i)
+        unsorted = 0
+        for c, cups in color_cups.items():
+            if len(cups) > 1:
+                unsorted += 1
+            else:
+                idx = next(iter(cups))
+                cup = self.state[idx]
+                if len(cup) != self.capacity or not self._all_elements_same(cup):
+                    unsorted += 1
+        return unsorted
+
+    def greedy_search(self, max_attempts=2000000):
+        """贪婪最佳优先搜索（只用启发函数 h，不保证最优但极快）
+
+        返回: (path, puzzle_state) or None
+        """
+        h = self._heuristic()
+        if h == 0:
+            return [], self
+
+        seq = 0
+        q = [(h, seq, [], self)]
+        visited = {self._state_key(self.state)}
+        attempts = 0
+
+        while q:
+            _, _, path, pz = heapq.heappop(q)
+
+            if pz.isRight():
+                print(f"贪心搜索了 {attempts} 个状态")
+                return path, pz
+
+            if len(path) >= 2:
+                last, prev = path[-1], path[-2]
+                if last[1] == prev[0] and last[0] == prev[1]:
+                    continue
+
+            for act, suc_pz in pz.get_successors():
+                key = suc_pz._state_key(suc_pz.state)
+                if key not in visited:
+                    visited.add(key)
+                    seq += 1
+                    heapq.heappush(q, (suc_pz._heuristic(), seq, path + [act], suc_pz))
+                    attempts += 1
+                    if attempts > max_attempts:
+                        print("贪心搜索超出最大次数")
+                        return None
+
+        print("贪心搜索无解")
+        return None
+
+    def astar(self, max_attempts=2000000):
+        """A* 搜索 (f = g + h)，保证最短路径
+
+        返回: (path, puzzle_state) or None
+        """
+        h = self._heuristic()
+        if h == 0:
+            return [], self
+
+        seq = 0
+        q = [(h, 0, seq, [], self)]
+        visited = {self._state_key(self.state): 0}
+        attempts = 0
+
+        while q:
+            f, g, _, path, pz = heapq.heappop(q)
+
+            if pz.isRight():
+                print(f"A* 搜索了 {attempts} 个状态")
+                return path, pz
+
+            if len(path) >= 2:
+                last, prev = path[-1], path[-2]
+                if last[1] == prev[0] and last[0] == prev[1]:
+                    continue
+
+            for act, suc_pz in pz.get_successors():
+                key = suc_pz._state_key(suc_pz.state)
+                new_g = g + 1
+                if key not in visited or new_g < visited[key]:
+                    visited[key] = new_g
+                    seq += 1
+                    heapq.heappush(q, (new_g + suc_pz._heuristic(), new_g, seq, path + [act], suc_pz))
+                    attempts += 1
+                    if attempts > max_attempts:
+                        print("A* 搜索超出最大次数")
+                        return None
+
+        print("A* 搜索无解")
+        return None
+
+    def solve(self):
+        """默认求解策略：贪心优先 → A* 保底
+
+        贪心极快但可能找不到解（很少发生），
+        A* 保证最优和完备性。
+        """
+        r = self.greedy_search()
+        if r is not None:
+            return r
+        print("使用 A* 保底求解...")
+        return self.astar()
+
 
 def adb_touch(x, y):
     """ADB 模拟点击坐标 (x, y)"""
@@ -191,7 +308,7 @@ def main():
     # 3. 求解
     print("正在求解...")
     puzzle = Puzzle(state, capacity=4)
-    result = puzzle.bfs()
+    result = puzzle.solve()
 
     if result is None:
         print("无解")
@@ -220,7 +337,7 @@ def run_local_test(path="live_screenshot.png"):
 
     print("正在求解...")
     puzzle = Puzzle(state, capacity=4)
-    result = puzzle.bfs()
+    result = puzzle.solve()
 
     if result is None:
         print("无解")

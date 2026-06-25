@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-倒水游戏自动求解器。ADB 连接安卓手机 → 自动截屏 → OpenCV 识别水杯和各层颜色 → BFS 搜索最优解法 → ADB 模拟点击自动完成。
+倒水游戏自动求解器。ADB 连接安卓手机 → 自动截屏 → OpenCV 识别水杯和各层颜色 → 贪心搜索(默认) / A*(保底) → ADB 模拟点击自动完成。
 
 ## 功能边界
 
@@ -19,7 +19,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```
 倒水游戏/
 ├── recognize.py       # 图像识别模块：截图、找杯子、采样颜色
-├── test.py            # 求解器 + 主流程：Puzzle 类、BFS、ADB 操作
+├── test.py            # 求解器 + 主流程：Puzzle 类、贪心/A* 搜索、ADB 操作
+├── benchmark.py       # 算法性能对比脚本（不影响现有代码）
 ├── live_screenshot.png # 测试用截图（5 杯，1080×2400）
 ├── CLAUDE.md          # 本文件
 ```
@@ -62,7 +63,9 @@ recognize()       # 一站式返回 (cups, state)
 main()
 ├── check_adb() → adb 可用则截图，否则 fallback 到本地文件测试
 ├── recognize.recognize() → cups, state
-├── Puzzle(state, capacity=4).bfs() → path, solved_state
+├── Puzzle(state, capacity=4).solve()
+│   ├── greedy_search()     # 贪婪最佳优先（默认，极快，~98% 情况有解）
+│   └── astar()             # A* 保底（贪心无解时自动启用，完备+最优）
 └── 遍历 path → adb_touch() 模拟点击（0.3s 间隔，2.5s 每步）
 ```
 
@@ -72,7 +75,13 @@ main()
 - `_is_action(from, to)`：合法性规则（原杯非空、目标杯未满、顶色匹配、倒出的连续同色块数 ≤ 目标杯剩余空位）
 - `_count_top_blocks(cup)`：统计杯顶连续同色的块数（从列表末尾向前遍历）
 - `_apply_action(from, to)`：从原杯末尾 pop，append 到目标杯末尾，直到颜色变或满/空
-- `bfs(max_attempts)`：BFS 搜索 + 剪枝（跳过 A→B 后 B→A 的对称操作）
+- `_heuristic()`：启发函数——统计未归位的颜色种类数（出现在 2+ 杯 或 不满杯单色）
+- `solve()` → `greedy_search()` / `astar()`：默认求解策略
+- `greedy_search(max_attempts)`：贪婪最佳优先搜索（只用 h，不保证最优）
+- `astar(max_attempts)`：A* 搜索（f = g + h，保证最短路径）
+- `bfs(max_attempts)`：BFS 搜索（保留作基准对照）
+
+搜索剪枝（三种算法共用）：连续两步互为逆操作直接跳过。
 
 ### 重要约定
 
