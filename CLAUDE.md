@@ -4,7 +4,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-倒水游戏自动求解器。ADB 连接安卓手机 → 自动截屏 → OpenCV 识别水杯和各层颜色 → 贪心搜索(默认) / A*(保底) → ADB 模拟点击自动完成。
+倒水游戏自动求解器。ADB 连接安卓手机 → adb devices确认设备在线 → 自动截屏 → OpenCV 识别水杯和各层颜色 → 贪心搜索(默认) / A*(保底) → ADB 模拟点击自动完成。
+
+步骤
+1. 下载ADB，地址是“D:\Tools\platform-tools-latest-windows\platform-tools”，根据你的具体地址调整
+2. 在Powershell输入下面的命令
+[Environment]::SetEnvironmentVariable("Path", $env:Path + ";D:\Tools\platform-tools-latest-windows\platform-tools","User")
+$env:Path = [Environment]::GetEnvironmentVariable("Path", "User")
+3. 接下来用数据线连接电脑和手机，目前测试的是安卓，苹果用不了这个方案。打开设置，点击我的，在手机版本出连续点击八下，直到出现“开发者模式已打开”，然后搜索开发者模式，打开USB调试，如果有“USB调试（安全设置）”也要打开。
+4. 运行adb devices，看是不是出现“你的设备号 device”，是的话说明手机和电脑成功连接
+5. 运行python test.py
 
 ## 功能边界
 
