@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 步骤
 1. 下载ADB，地址是“D:\Tools\platform-tools-latest-windows\platform-tools”，根据你的具体地址调整
-2. 在Powershell输入下面的命令
+2. 在Powershell输入下面的命令（第二次运行只需要运行第二条命令）
 [Environment]::SetEnvironmentVariable("Path", $env:Path + ";D:\Tools\platform-tools-latest-windows\platform-tools","User")
 $env:Path = [Environment]::GetEnvironmentVariable("Path", "User")
 3. 接下来用数据线连接电脑和手机，目前测试的是安卓，苹果用不了这个方案。打开设置，点击我的，在手机版本出连续点击八下，直到出现“开发者模式已打开”，然后搜索开发者模式，打开USB调试，如果有“USB调试（安全设置）”也要打开。
@@ -29,8 +29,7 @@ $env:Path = [Environment]::GetEnvironmentVariable("Path", "User")
 倒水游戏/
 ├── recognize.py       # 图像识别模块：截图、找杯子、采样颜色
 ├── test.py            # 求解器 + 主流程：Puzzle 类、贪心/A* 搜索、ADB 操作
-├── benchmark.py       # 算法性能对比脚本（不影响现有代码）
-├── live_screenshot.png # 测试用截图（5 杯，1080×2400）
+├── test_full.py       # 全流程测试版：自动通关 → 固定坐标关干扰 → 识别点下一关
 ├── CLAUDE.md          # 本文件
 ```
 
@@ -70,12 +69,18 @@ recognize()       # 一站式返回 (cups, state)
 
 ```
 main()
-├── check_adb() → adb 可用则截图，否则 fallback 到本地文件测试
-├── recognize.recognize() → cups, state
-├── Puzzle(state, capacity=4).solve()
-│   ├── greedy_search()     # 贪婪最佳优先（默认，极快，~98% 情况有解）
-│   └── astar()             # A* 保底（贪心无解时自动启用，完备+最优）
-└── 遍历 path → adb_touch() 模拟点击（0.3s 间隔，2.5s 每步）
+├── check_adb() → adb 可用则 auto_play()，否则 fallback 到本地文件测试
+└── auto_play()  # 全自动多关卡循环
+    ├── 截图 → recognize.recognize() → cups, state
+    ├── Puzzle(state, capacity=4).solve()
+    │   ├── greedy_search()     # 贪婪最佳优先（默认，极快，~98% 情况有解）
+    │   └── astar()             # A* 保底（贪心无解时自动启用，完备+最优）
+    ├── 遍历 path → adb_touch() 模拟点击（0.3s 间隔，2.5s 每步）
+    ├── 通关检测：识别到通关态 / 识别不到杯子 → 视为通关
+    └── handle_clear()  # 结算状态机，自动进入下一关（每次分析前等待 1s）
+        ├── "下一关"按钮（位置扫描：水平居中+垂直偏下的彩色大块）→ 长按压 + 耐心轮询进入新关卡
+        ├── 广告/奖励弹窗 → 检测"圆圈内×"（白块候选 + Hough 圆验证，非圆圈不点）
+        └── 未知界面 → 存证截图后重试（不盲点固定坐标）
 ```
 
 **Puzzle 类：**
@@ -103,10 +108,10 @@ main()
 ## 运行
 
 ```bash
-# 测试识别+求解（用本地截图，无需 ADB）
-python test.py
-
 # 全自动（需要 ADB 连接安卓设备）
 # 将安卓设备通过 USB 连接，开启 USB 调试 + 安全设置中开启"USB 调试（安全设置）"
 python test.py
+
+# 本地识别+求解测试（无 ADB；需自备截图文件，传入路径）
+python -c "import test; test.run_local_test('你的截图.png')"
 ```

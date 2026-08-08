@@ -3,6 +3,7 @@ import numpy as np
 import subprocess
 import tempfile
 import os
+import time
 
 COLOR_TOLERANCE = 30  # RGB 欧氏距离容差
 CUP_TOP_GAP = 49     # 杯顶到第一个色块的距离（实测，含白边+空隙）
@@ -173,6 +174,23 @@ def _detect_background_color(img):
 def _color_distance(c1, c2):
     """RGB 欧氏距离"""
     return ((c1[0] - c2[0]) ** 2 + (c1[1] - c2[1]) ** 2 + (c1[2] - c2[2]) ** 2) ** 0.5
+
+
+def screen_size(img):
+    """返回屏幕尺寸 (w, h)"""
+    h, w = img.shape[:2]
+    return (w, h)
+
+
+def save_debug(img, tag):
+    """把 OpenCV 图像保存到 debug/ 目录，用于校准坐标
+
+    返回: 保存的文件路径
+    """
+    os.makedirs("debug", exist_ok=True)
+    filename = f"debug/{tag}_{time.strftime('%H%M%S')}.png"
+    cv2.imwrite(filename, img)
+    return filename
 
 
 # === 测试 ===
